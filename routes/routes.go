@@ -20,5 +20,10 @@ func Setup(app *fiber.App) {
 	api.Post("/tasks", middleware.RequireAuth, controllers.CreateTask)
 	api.Put("/tasks/:id", middleware.RequireAuth, controllers.UpdateTask)
 	api.Delete("/tasks/:id", middleware.RequireAuth, controllers.DeleteTask)
+	api.Post("/logout", middleware.RequireAuth, controllers.Logout)
+	admin := app.Group("/api/admin", middleware.RequireAuth, middleware.RequireAdmin)
+	admin.Put("/block/:id", controllers.BlockUser) // Kullanıcı engelleme endpoint'i
+	admin.Put("/make", controllers.MakeAdminByEmail)
+	admin.Put("/block", controllers.BlockUserByEmail)
 
 }

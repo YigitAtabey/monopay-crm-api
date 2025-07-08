@@ -4,6 +4,7 @@ import (
 	"monopay-crm-api/config"
 	"monopay-crm-api/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -74,6 +75,10 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Şifre yanlış"})
 	}
 
+	if user.IsBlocked {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Kullanıcı engellendi, giriş yapılamıyor"})
+	}
+
 	claims := jwt.RegisteredClaims{
 		Subject:   strconv.Itoa(int(user.ID)),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
@@ -97,4 +102,40 @@ func Profile(c *fiber.Ctx) error {
 		"email": user.Email,
 	})
 
+}
+func Logout(c *fiber.Ctx) error {
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token bulunamadı"})
+	}
+	splitToken := strings.Split(authHeader, " ")
+	if len(splitToken) != 2 || splitToken[0] != "Bearer" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token formatı hatalı"})
+	}
+	tokenString := splitToken[1]
+
+	// Token süresi çözülmeli (expires_at)
+	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte("secret"), nil
+	})
+	if err != nil || !token.Valid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token geçersiz"})
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token çözümlenemedi"})
+	}
+
+	blacklisted := models.TokenBlacklist{
+		Token:         tokenString,
+		BlacklistedAt: time.Now(),
+		ExpiresAt:     claims.ExpiresAt.Time,
+	}
+
+	if err := config.DB.Create(&blacklisted).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Blacklist kaydedilemedi"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Başarıyla çıkış yapıldı"})
 }
