@@ -57,41 +57,65 @@ func Register(c *fiber.Ctx) error {
 }
 
 func Login(c *fiber.Ctx) error {
+	// 1) İstek gövdesini parse et
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-
 	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı"})
+		return c.Status(fiber.StatusBadRequest).
+			JSON(fiber.Map{"error": "Geçersiz istek formatı"})
 	}
 
+	// 2) Kullanıcıyı bul
 	var user models.User
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Kullanıcı bulunamadı"})
+	if err := config.DB.
+		Where("email = ?", input.Email).
+		First(&user).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).
+			JSON(fiber.Map{"error": "Kullanıcı bulunamadı"})
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Şifre yanlış"})
+	// 3) Şifreyi kontrol et
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.Password),
+		[]byte(input.Password),
+	); err != nil {
+		return c.Status(fiber.StatusUnauthorized).
+			JSON(fiber.Map{"error": "Şifre yanlış"})
 	}
 
+	// 4) Engel kontrolü (opsiyonel)
 	if user.IsBlocked {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Kullanıcı engellendi, giriş yapılamıyor"})
+		return c.Status(fiber.StatusForbidden).
+			JSON(fiber.Map{"error": "Kullanıcı engellendi, giriş yapılamıyor"})
 	}
 
+	// 5) JWT oluştur
 	claims := jwt.RegisteredClaims{
 		Subject:   strconv.Itoa(int(user.ID)),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte("secret"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Token oluşturulamadı"})
+		return c.Status(fiber.StatusInternalServerError).
+			JSON(fiber.Map{"error": "Token oluşturulamadı"})
 	}
 
-	return c.JSON(fiber.Map{"message": "Giriş başarılı", "token": tokenStr})
+	// 6) Başarılı yanıt: hem user objesini hem token’ı hem de role’u dön
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Giriş başarılı",
+		"user":    user,
+		"token":   tokenStr,
+		"role": func() string {
+			if user.IsAdmin {
+				return "admin"
+			}
+			return "user"
+		}(),
+	})
 }
 
 func Profile(c *fiber.Ctx) error {

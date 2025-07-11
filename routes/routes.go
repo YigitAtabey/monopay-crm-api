@@ -12,6 +12,7 @@ func Setup(app *fiber.App) {
 
 	api.Post("/register", controllers.Register)
 	api.Post("/login", controllers.Login)
+	api.Get("/users", middleware.RequireAuth /*, isAdmin middleware? */, controllers.GetUsers)
 
 	api.Get("/profile", middleware.RequireAuth, controllers.Profile)
 	api.Get("/tasks", middleware.RequireAuth, controllers.GetTasks)
