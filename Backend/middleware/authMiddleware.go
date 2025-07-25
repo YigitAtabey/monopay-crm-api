@@ -56,7 +56,8 @@ func RequireAuth(c *fiber.Ctx) error {
 	if err := config.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Kullanıcı bulunamadı"})
 	}
-	if user.IsBlocked {
+	// Role tabanlı engel kontrolü
+	if user.Role == "blocked" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Hesabınız engellenmiştir.",
 		})
@@ -65,6 +66,7 @@ func RequireAuth(c *fiber.Ctx) error {
 	c.Locals("user", user)
 	return c.Next()
 }
+
 func IsTokenBlacklisted(token string) (bool, error) {
 	var blacklisted models.TokenBlacklist
 	result := config.DB.Table("token_blacklist").Where("token = ? AND expires_at > ?", token, time.Now()).First(&blacklisted)
@@ -72,7 +74,6 @@ func IsTokenBlacklisted(token string) (bool, error) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
-		// Hata varsa logla
 		fmt.Println("DB Hatası:", result.Error)
 		return false, result.Error
 	}

@@ -1,27 +1,43 @@
-// controllers/userController.go
 package controllers
 
 import (
-	"monopay-crm-api/config" // DB bağlantısını tuttuğun yapı
-	"monopay-crm-api/models" // User model tanımı
+	"monopay-crm-api/config"
+	"monopay-crm-api/models"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-// GetUsers: Tüm kullanıcıların listesini dönen handler.
-// - DB’den tüm User kayıtlarını çeker.
-// - Hata varsa 500, yoksa JSON array döner.
+// GetUsers: Tüm kullanıcıların listesini döner.
+// Sadece adminler tüm kullanıcıları görür, user sadece kendini görür, blocked hiçbir kullanıcıyı göremez.
 func GetUsers(c *fiber.Ctx) error {
+	currentUser := c.Locals("user").(models.User)
 	var users []models.User
 
-	// DB.Find: tüm user kayıtlarını users değişkenine atar
-	if err := config.DB.Find(&users).Error; err != nil {
-		// DB okuma hatası
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Kullanıcılar alınamadı",
+	switch currentUser.Role {
+	case "admin":
+		// Admin ise tüm kullanıcıları getir
+		if err := config.DB.Find(&users).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Kullanıcılar alınamadı",
+			})
+		}
+		return c.JSON(users)
+	case "user":
+		// User ise sadece kendini görebilir
+		if err := config.DB.Where("id = ?", currentUser.ID).Find(&users).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Kullanıcı alınamadı",
+			})
+		}
+		return c.JSON(users)
+	case "blocked":
+		// Engelli kullanıcı hiçbir kullanıcıyı göremez
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Erişiminiz engellendi",
+		})
+	default:
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Geçersiz kullanıcı rolü",
 		})
 	}
-
-	// Başarılı cevap: users dizisini JSON olarak dön
-	return c.JSON(users)
 }

@@ -7,11 +7,26 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// Sadece admin tüm görevleri görebilir, normal kullanıcı sadece kendi görevlerini görebilir
 func GetTasks(c *fiber.Ctx) error {
-	user := c.Locals("user").(models.User) // JWT'den gelen kullanıcıyı alıyoruz
+	user := c.Locals("user").(models.User)
 
 	var tasks []models.Task
-	if err := config.DB.Where("user_id = ?", user.ID).Find(&tasks).Error; err != nil {
+	var err error
+
+	if user.Role == "admin" {
+		// Admin ise tüm görevleri getir
+		err = config.DB.Find(&tasks).Error
+	} else {
+		// Engelli kullanıcı hiçbir şey göremez
+		if user.Role == "blocked" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Erişiminiz engellendi"})
+		}
+		// User ise sadece kendi görevlerini getir
+		err = config.DB.Where("user_id = ?", user.ID).Find(&tasks).Error
+	}
+
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Görevler alınamadı",
 		})
@@ -19,8 +34,14 @@ func GetTasks(c *fiber.Ctx) error {
 
 	return c.JSON(tasks)
 }
+
+// Engelli kullanıcı görev oluşturamaz, admin ve user oluşturabilir
 func CreateTask(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
+
+	if user.Role == "blocked" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Erişiminiz engellendi"})
+	}
 
 	var task models.Task
 	if err := c.BodyParser(&task); err != nil {
@@ -36,17 +57,28 @@ func CreateTask(c *fiber.Ctx) error {
 	return c.JSON(task)
 }
 
+// Admin istediği görevi güncelleyebilir, user sadece kendi görevini
 func UpdateTask(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 	taskID := c.Params("id")
 
 	var task models.Task
-	// Önce görevi kullanıcıya ait ve ID eşleşmeli olarak bul
-	if err := config.DB.Where("id = ? AND user_id = ?", taskID, user.ID).First(&task).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+
+	if user.Role == "admin" {
+		// Admin her görevi güncelleyebilir
+		if err := config.DB.Where("id = ?", taskID).First(&task).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+		}
+	} else {
+		if user.Role == "blocked" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Erişiminiz engellendi"})
+		}
+		// User ise sadece kendi görevini
+		if err := config.DB.Where("id = ? AND user_id = ?", taskID, user.ID).First(&task).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+		}
 	}
 
-	// Güncellenecek veriyi al
 	var input struct {
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
@@ -56,7 +88,6 @@ func UpdateTask(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz veri"})
 	}
 
-	// Değişiklik varsa güncelle
 	if input.Title != nil {
 		task.Title = *input.Title
 	}
@@ -71,14 +102,26 @@ func UpdateTask(c *fiber.Ctx) error {
 	return c.JSON(task)
 }
 
+// Admin istediği görevi silebilir, user sadece kendi görevini
 func DeleteTask(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 	taskID := c.Params("id")
 
 	var task models.Task
-	// Kullanıcıya ait görevi bul
-	if err := config.DB.Where("id = ? AND user_id = ?", taskID, user.ID).First(&task).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+
+	if user.Role == "admin" {
+		// Admin her görevi silebilir
+		if err := config.DB.Where("id = ?", taskID).First(&task).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+		}
+	} else {
+		if user.Role == "blocked" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Erişiminiz engellendi"})
+		}
+		// User ise sadece kendi görevini
+		if err := config.DB.Where("id = ? AND user_id = ?", taskID, user.ID).First(&task).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Görev bulunamadı"})
+		}
 	}
 
 	if err := config.DB.Delete(&task).Error; err != nil {

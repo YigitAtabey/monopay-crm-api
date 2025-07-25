@@ -1,4 +1,3 @@
-<!-- src/components/NavBar.vue -->
 <template>
   <nav class="navbar">
     <!-- Marka Logo / Başlık -->
@@ -15,6 +14,7 @@
       <li v-if="isLoggedIn"><router-link to="/panel">Panel</router-link></li>
       <li v-if="isLoggedIn"><router-link to="/tasks">Görev Listesi</router-link></li>
       <li v-if="isLoggedIn"><router-link to="/tasks/manage">Görev Yönetimi</router-link></li>
+      <!-- Sadece admin rolünde olanlar için Admin Paneli -->
       <li v-if="isLoggedIn && isAdmin"><router-link to="/admin">Admin Paneli</router-link></li>
       <li v-if="isLoggedIn"><router-link to="/logout">Çıkış</router-link></li>
     </ul>
@@ -27,6 +27,7 @@ import { useAuthStore } from '@/store/auth'
 
 const auth       = useAuthStore()
 const isLoggedIn = computed(() => auth.isLoggedIn)
+// Sadece role='admin' olan kullanıcılar admin paneli görebilir.
 const isAdmin    = computed(() => auth.user?.role === 'admin')
 </script>
 

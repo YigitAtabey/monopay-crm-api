@@ -1,6 +1,5 @@
-// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore }              from '@/store/auth'
+import { useAuthStore } from '@/store/auth'
 
 import HomeView        from '@/views/HomeView.vue'
 import Login           from '@/views/user/Login.vue'
@@ -22,22 +21,30 @@ const routes = [
   { path: '/logout',     name: 'logout',      component: Logout,         meta: { requiresAuth: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
+
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
+
+// requiresAdmin rotaları için role kontrolü ekleniyor
 router.beforeEach((to, from, next) => {
   const auth     = useAuthStore()
   const loggedIn = auth.isLoggedIn
-  const isAdmin  = auth.user?.role === 'admin'
+  const user     = auth.user
 
   if (to.meta.requiresAuth && !loggedIn) {
     return next({ path: '/login' })
   }
-  if (to.meta.requiresAdmin && !isAdmin) {
+  if ((to.path === '/login' || to.path === '/register') && loggedIn) {
     return next({ path: '/' })
   }
-  if ((to.path === '/login' || to.path === '/register') && loggedIn) {
+  // Sadece admin rolüne sahip kullanıcılar /admin'e erişebilir
+  if (to.meta.requiresAdmin && (!user || user.role !== 'admin')) {
+    return next({ path: '/' })
+  }
+  // Blocked kullanıcıların hiçbir protected route'a girmesine izin verilmez
+  if (loggedIn && user && user.role === 'blocked' && to.meta.requiresAuth) {
     return next({ path: '/' })
   }
   next()

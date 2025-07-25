@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"monopay-crm-api/config"
 	"monopay-crm-api/models"
 	"strconv"
@@ -37,6 +38,12 @@ func Register(c *fiber.Ctx) error {
 	}
 	input.Password = string(hashedPassword)
 
+	// Role ayarlama: gelen değer admin ise "admin", değilse "user" olarak kaydediyoruz.
+	input.Role = strings.ToLower(input.Role)
+	if input.Role != "admin" {
+		input.Role = "user"
+	}
+
 	if err := config.DB.Create(&input).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Kayıt başarısız"})
 	}
@@ -57,7 +64,6 @@ func Register(c *fiber.Ctx) error {
 }
 
 func Login(c *fiber.Ctx) error {
-	// 1) İstek gövdesini parse et
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -67,7 +73,6 @@ func Login(c *fiber.Ctx) error {
 			JSON(fiber.Map{"error": "Geçersiz istek formatı"})
 	}
 
-	// 2) Kullanıcıyı bul
 	var user models.User
 	if err := config.DB.
 		Where("email = ?", input.Email).
@@ -76,7 +81,8 @@ func Login(c *fiber.Ctx) error {
 			JSON(fiber.Map{"error": "Kullanıcı bulunamadı"})
 	}
 
-	// 3) Şifreyi kontrol et
+	fmt.Printf("DEBUG LOGIN USER: %+v\n", user)
+
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.Password),
 		[]byte(input.Password),
@@ -85,13 +91,12 @@ func Login(c *fiber.Ctx) error {
 			JSON(fiber.Map{"error": "Şifre yanlış"})
 	}
 
-	// 4) Engel kontrolü (opsiyonel)
-	if user.IsBlocked {
+	// Engel kontrolü: role blocked ise giriş yasak
+	if user.Role == "blocked" {
 		return c.Status(fiber.StatusForbidden).
 			JSON(fiber.Map{"error": "Kullanıcı engellendi, giriş yapılamıyor"})
 	}
 
-	// 5) JWT oluştur
 	claims := jwt.RegisteredClaims{
 		Subject:   strconv.Itoa(int(user.ID)),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
@@ -104,17 +109,11 @@ func Login(c *fiber.Ctx) error {
 			JSON(fiber.Map{"error": "Token oluşturulamadı"})
 	}
 
-	// 6) Başarılı yanıt: hem user objesini hem token’ı hem de role’u dön
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Giriş başarılı",
 		"user":    user,
 		"token":   tokenStr,
-		"role": func() string {
-			if user.IsAdmin {
-				return "admin"
-			}
-			return "user"
-		}(),
+		"role":    user.Role,
 	})
 }
 
@@ -124,9 +123,10 @@ func Profile(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"id":    user.ID,
 		"email": user.Email,
+		"role":  user.Role,
 	})
-
 }
+
 func Logout(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
@@ -138,7 +138,6 @@ func Logout(c *fiber.Ctx) error {
 	}
 	tokenString := splitToken[1]
 
-	// Token süresi çözülmeli (expires_at)
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte("secret"), nil
 	})

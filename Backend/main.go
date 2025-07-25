@@ -14,8 +14,13 @@ import (
 )
 
 func main() {
-	// 1. DB bağlantısını aç
+	// 1. DB bağlantısını aç (yeni ConnectDB fonksiyonun döngüyle bağlantı deniyor)
 	config.ConnectDB()
+
+	// Ekstra garanti için: Bağlantı gerçekten var mı kontrolü (normalde gerek yok ama isterse eklenebilir)
+	if config.DB == nil {
+		log.Fatal("Veritabanı bağlantısı kurulamadı, uygulama başlatılamıyor!")
+	}
 
 	// 2. Gerekli tabloları oluştur
 	if err := config.DB.AutoMigrate(&models.User{}, &models.Task{}, &models.TokenBlacklist{}); err != nil {

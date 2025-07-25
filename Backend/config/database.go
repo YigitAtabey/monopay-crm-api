@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -11,14 +13,26 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	dsn := "root:Yigit4434.@tcp(127.0.0.1:3306)/monopay?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASS"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+	)
 
-	database, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	var db *gorm.DB
+	var err error
 
-	if err != nil {
-		log.Fatal("❌ Veritabanına bağlanılamadı:", err)
+	for {
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		if err != nil {
+			log.Println("❌ Veritabanına bağlanılamadı, tekrar denenecek:", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		DB = db
+		log.Println("✅ Veritabanı bağlantısı başarılı")
+		break
 	}
-
-	DB = database
-	fmt.Println("✅ Veritabanı bağlantısı başarılı")
 }

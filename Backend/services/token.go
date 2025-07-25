@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// CleanExpiredTokens: Süresi dolmuş tokenları blacklist tablosundan siler.
 func CleanExpiredTokens() {
 	log.Println("CleanExpiredTokens çalıştı")
 	result := config.DB.Where("expires_at < ?", time.Now()).Delete(&models.TokenBlacklist{})
