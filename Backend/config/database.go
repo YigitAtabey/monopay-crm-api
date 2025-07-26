@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"monopay-crm-api/models"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -35,4 +37,36 @@ func ConnectDB() {
 		log.Println("✅ Veritabanı bağlantısı başarılı")
 		break
 	}
+}
+
+// CreateDefaultAdmin - Sistem başlatıldığında otomatik olarak default admin kullanıcısı oluşturur
+func CreateDefaultAdmin() {
+	var admin models.User
+	// Eğer admin email'li kullanıcı zaten varsa, tekrar oluşturma
+	if err := DB.Where("email = ?", "admin").First(&admin).Error; err == nil {
+		log.Println("ℹ️  Default admin kullanıcısı zaten mevcut")
+		return
+	}
+
+	// Admin şifresini hashle
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("1234"), 14)
+	if err != nil {
+		log.Printf("❌ Default admin şifresi hashlenemedi: %v", err)
+		return
+	}
+
+	// Default admin kullanıcısını oluştur
+	defaultAdmin := models.User{
+		Name:     "Administrator",
+		Email:    "admin",
+		Password: string(hashedPassword),
+		Role:     "admin",
+	}
+
+	if err := DB.Create(&defaultAdmin).Error; err != nil {
+		log.Printf("❌ Default admin kullanıcısı oluşturulamadı: %v", err)
+		return
+	}
+
+	log.Println("✅ Default admin kullanıcısı başarıyla oluşturuldu (email: admin, password: 1234)")
 }

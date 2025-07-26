@@ -38,11 +38,8 @@ func Register(c *fiber.Ctx) error {
 	}
 	input.Password = string(hashedPassword)
 
-	// Role ayarlama: gelen değer admin ise "admin", değilse "user" olarak kaydediyoruz.
-	input.Role = strings.ToLower(input.Role)
-	if input.Role != "admin" {
-		input.Role = "user"
-	}
+	// Güvenlik: Register endpoint ile admin oluşturulamaz, tüm kayıtlar "user" rolüyle yapılır.
+	input.Role = "user"
 
 	if err := config.DB.Create(&input).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Kayıt başarısız"})

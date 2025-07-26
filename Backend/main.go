@@ -27,12 +27,15 @@ func main() {
 		log.Fatal("Migrate hatası:", err)
 	}
 
-	// 3. Fiber app başlat
+	// 3. Default admin kullanıcısını oluştur (eğer yoksa)
+	config.CreateDefaultAdmin()
+
+	// 4. Fiber app başlat
 	app := fiber.New(fiber.Config{
 		// istersen buraya özel config ekleyebilirsin
 	})
 
-	// 4. CORS middleware: front-end'den gelen istekleri aç
+	// 5. CORS middleware: front-end'den gelen istekleri aç
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:8080",
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
@@ -41,10 +44,10 @@ func main() {
 		MaxAge:           12 * 60 * 60,
 	}))
 
-	// 5. Route’ları ekle
+	// 6. Route’ları ekle
 	routes.Setup(app)
 
-	// 6. (Opsiyonel) Arka planda blacklist temizleme
+	// 7. (Opsiyonel) Arka planda blacklist temizleme
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		for range ticker.C {
@@ -52,6 +55,6 @@ func main() {
 		}
 	}()
 
-	// 7. Sunucuyu ayağa kaldır
+	// 8. Sunucuyu ayağa kaldır
 	log.Fatal(app.Listen(":8083"))
 }
