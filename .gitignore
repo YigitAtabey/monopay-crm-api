@@ -1,1 +1,13 @@
+# Go binaries
 Backend/main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test coverage
+*.out
+
+# Dependency directories
+vendor/
