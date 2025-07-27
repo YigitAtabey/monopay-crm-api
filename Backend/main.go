@@ -27,12 +27,15 @@ func main() {
 		log.Fatal("Migrate hatası:", err)
 	}
 
-	// 3. Fiber app başlat
+	// 3. Varsayılan admin kullanıcısını oluştur
+	config.CreateDefaultAdmin()
+
+	// 4. Fiber app başlat
 	app := fiber.New(fiber.Config{
 		// istersen buraya özel config ekleyebilirsin
 	})
 
-	// 4. CORS middleware: front-end'den gelen istekleri aç
+	// 5. CORS middleware: front-end'den gelen istekleri aç
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:8080",
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",

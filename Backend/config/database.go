@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -35,4 +36,46 @@ func ConnectDB() {
 		log.Println("✅ Veritabanı bağlantısı başarılı")
 		break
 	}
+}
+
+// CreateDefaultAdmin varsayılan admin kullanıcısını oluşturur
+func CreateDefaultAdmin() {
+	// Önce admin kullanıcısının var olup olmadığını kontrol et
+	var adminUser struct {
+		ID    uint   `gorm:"primarykey"`
+		Email string `gorm:"unique"`
+		Role  string
+	}
+
+	// Admin email ile kullanıcı var mı kontrol et
+	err := DB.Select("id, email, role").Where("email = ?", "admin").First(&adminUser).Error
+	if err == nil {
+		// Admin zaten var
+		log.Printf("ℹ️  Varsayılan admin kullanıcısı zaten mevcut (ID: %d, Role: %s)", adminUser.ID, adminUser.Role)
+		return
+	}
+
+	// Admin kullanıcı yok, oluştur
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("1234"), 14)
+	if err != nil {
+		log.Printf("❌ Admin şifresi hashlenemedi: %v", err)
+		return
+	}
+
+	// Admin kullanıcısını oluştur - models.User import etmemek için inline struct kullanıyoruz
+	adminData := map[string]interface{}{
+		"name":       "Administrator",
+		"email":      "admin",
+		"password":   string(hashedPassword),
+		"role":       "admin",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	}
+
+	if err := DB.Table("users").Create(&adminData).Error; err != nil {
+		log.Printf("❌ Varsayılan admin kullanıcısı oluşturulamadı: %v", err)
+		return
+	}
+
+	log.Println("✅ Varsayılan admin kullanıcısı oluşturuldu (Email: admin, Şifre: 1234)")
 }
