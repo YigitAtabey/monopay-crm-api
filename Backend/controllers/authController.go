@@ -8,13 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
-
-var validate = validator.New()
 
 func Register(c *fiber.Ctx) error {
 	var input models.User
@@ -23,9 +20,10 @@ func Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı"})
 	}
 
-	if err := validate.Struct(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Eksik ya da hatalı alanlar var"})
-	}
+	// Validasyon kullanıyorsan açabilirsin:
+	// if err := validate.Struct(&input); err != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Eksik ya da hatalı alanlar var"})
+	// }
 
 	var existing models.User
 	if err := config.DB.Unscoped().Where("email = ?", input.Email).First(&existing).Error; err == nil {
@@ -38,9 +36,10 @@ func Register(c *fiber.Ctx) error {
 	}
 	input.Password = string(hashedPassword)
 
-	// Role ayarlama: gelen değer admin ise "admin", değilse "user" olarak kaydediyoruz.
-	input.Role = strings.ToLower(input.Role)
-	if input.Role != "admin" {
+	// Eğer email "admin@admin" ise rolu admin yap, değilse user
+	if input.Email == "admin@admin" {
+		input.Role = "admin"
+	} else {
 		input.Role = "user"
 	}
 
@@ -48,9 +47,10 @@ func Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Kayıt başarısız"})
 	}
 
+	// JWT Token oluştur
 	claims := jwt.RegisteredClaims{
 		Subject:   strconv.Itoa(int(input.ID)),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}
 
