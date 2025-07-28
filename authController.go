@@ -20,10 +20,7 @@ func Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı"})
 	}
 
-	// Validasyon kullanıyorsan açabilirsin:
-	// if err := validate.Struct(&input); err != nil {
-	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Eksik ya da hatalı alanlar var"})
-	// }
+	
 
 	var existing models.User
 	if err := config.DB.Unscoped().Where("email = ?", input.Email).First(&existing).Error; err == nil {
